@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<VisualStudioToolFile
+	Name="Direct3D shaders"
+	Version="8.00"
+	>
+	<Rules>
+		<CustomBuildRule
+			Name="Vertex shader compiler"
+			DisplayName="Vertex shader compiler"
+			CommandLine="fxc [debugging] /Tvs_2_0 /Fh&quot;$(IntDir)\$(InputName).vfxobj&quot; /Vn VFX_$(InputName) &quot;[inputs]&quot;"
+			Outputs="&quot;$(IntDir)\$(InputName).vfxobj&quot;"
+			FileExtensions="*.vfx"
+			ExecutionDescription="Compiling vertex shader"
+			>
+			<Properties>
+				<StringProperty
+					Name="debugging"
+					DisplayName="Debugging"
+					Description="Debugging switches"
+					Switch="/Od /Zi"
+					Delimited="true"
+					Inheritable="true"
+				/>
+			</Properties>
+		</CustomBuildRule>
+		<CustomBuildRule
+			Name="Pixel shader compiler"
+			DisplayName="Pixel shader compiler"
+			CommandLine="fxc [debugging] /Tps_2_0 /Fh&quot;$(IntDir)\$(InputName).pfxobj&quot; /Vn PFX_$(InputName) &quot;[inputs]&quot;"
+			Outputs="&quot;$(IntDir)\$(InputName).pfxobj&quot;"
+			FileExtensions="*.pfx"
+			ExecutionDescription="Compiling pixel shader"
+			>
+			<Properties>
+				<StringProperty
+					Name="debugging"
+					DisplayName="Debugging"
+					Description="Debugging switches"
+					Switch="/Od /Zi"
+					Delimited="true"
+					Inheritable="true"
+				/>
+			</Properties>
+		</CustomBuildRule>
+	</Rules>
+</VisualStudioToolFile>

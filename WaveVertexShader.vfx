@@ -1,0 +1,138 @@
+
+float4x4 matViewProj		: register(c0);
+float4 matWorld0	        : register(c4);
+float4 matWorld1	        : register(c5);
+float4 matWorld2	        : register(c6);
+float4 matWorld3	        : register(c7);
+
+float4 eyePt	            : register(c12);
+float4 vecLightDir          : register(c13);
+
+float4 waveDirections[4]	: register(c14);
+float4 waveParams[4]		: register(c18);	// in this sequence - amplitude, speed, frequency, steepness; if amplitude = 0, then wave is not used
+float4 simParams			: register(c22);
+
+struct VS_INPUT
+{
+    float3 position	   : POSITION;
+    float3 normal	   : NORMAL;
+    float4 diffuse	   : COLOR0;
+    float4 specular	   : COLOR1;
+    float2 texCoords   : TEXCOORD0;
+    float4 boneIndices : BLENDINDICES;
+    float4 boneWeights : BLENDWEIGHT;
+};
+
+struct VS_OUTPUT
+{
+    float4 position  : POSITION0;
+    float2 texCoords : TEXCOORD0;
+    float3 light	 : TEXCOORD1;
+    float3 normal	 : TEXCOORD2;
+	float3 view		 : TEXCOORD3;
+    float4 diffuse   : COLOR0;
+    float4 specular  : COLOR1;
+};
+
+struct WaveVertex
+{
+	float3 position;
+	float3 normal;
+	float3 tangent;
+};
+
+/*
+	Calculates and adds to the result contribution of the given wave at the given position and time
+	See "GPU Gems #1" - "Effective Water Simulation from Physical Models" for details on used formulas
+	
+	This function uses Gerstner waves to simulate ocean waves (sin, cos combination)
+*/
+WaveVertex AddWaveContribution(WaveVertex input, float3 position, float time, float3 direction, float4 params)
+{
+	WaveVertex result = input;
+	if(params.x==0)
+	{
+		return result;
+	}
+	
+	float amplitude = params.x;
+	float speed = params.y;
+	float frequency = params.z;
+	float steepness = params.w;
+	
+	float feta = speed*frequency;
+	float WA = frequency*amplitude;
+	float K = steepness*amplitude;
+
+	float S = frequency*dot(direction, position) + feta*time;
+	float cosS = cos(S);
+	float sinS = sin(S);
+	
+	result.position.x += K*direction.x*cosS;
+	result.position.z += K*direction.z*cosS;
+	result.position.y += amplitude*sinS;
+
+	result.normal += float3(direction.x*WA*cosS, steepness*WA*sinS, direction.z*WA*cosS);
+	result.tangent += float3(steepness*direction.x*direction.z*WA*sinS,direction.z*WA*cosS,steepness*direction.z*direction.z*WA*sinS);
+	
+	return result;
+}
+
+VS_OUTPUT main(VS_INPUT input)
+{
+    VS_OUTPUT result;
+    
+    float4 inPosition = float4(input.position,1);
+    float4 inNormal = float4(input.normal,0);
+    
+    float3 posWorld;
+	posWorld.x = dot(inPosition, matWorld0);
+    posWorld.y = dot(inPosition, matWorld1);
+    posWorld.z = dot(inPosition, matWorld2);
+
+	result.normal.x = dot(inNormal, matWorld0);
+    result.normal.y = dot(inNormal, matWorld1);
+    result.normal.z = dot(inNormal, matWorld2);
+    result.normal = normalize(result.normal);
+    float3 tangent = float3(1,0,0);
+	
+    //float3 distance = posWorld - (float3)eyePt;
+    //if(distance.x*distance.x+distance.y*distance.y+distance.z*distance.z <= simParams.y) // LOD check
+	//{
+		// Calculate waves and distort geometry
+		WaveVertex waveVertexChange;
+		waveVertexChange.position = float3(0,0,0);
+		waveVertexChange.normal = float3(0,0,0);
+		waveVertexChange.tangent = float3(0,0,0);
+		
+		for(int i=0; i<4; i++)
+		{
+			float3 direction = float3(waveDirections[i].x, waveDirections[i].y, waveDirections[i].z);
+			waveVertexChange = AddWaveContribution(waveVertexChange, posWorld, simParams.x, direction, waveParams[i]);
+		}
+
+		posWorld = float3(posWorld.x + waveVertexChange.position.x, waveVertexChange.position.y, posWorld.z + waveVertexChange.position.z);
+		result.normal = normalize( float3(-waveVertexChange.normal.x, 1-waveVertexChange.normal.y, -waveVertexChange.normal.z) );
+		tangent = normalize( float3(-waveVertexChange.tangent.x, waveVertexChange.tangent.y, 1-waveVertexChange.tangent.z) );
+	//}
+
+	result.position = mul(float4(posWorld,1), matViewProj);
+	result.light = float3(-vecLightDir.x, -vecLightDir.y, -vecLightDir.z);
+	result.view = float3(eyePt.x,eyePt.y,eyePt.z) - posWorld;
+	
+	result.texCoords = input.texCoords;
+	result.diffuse = input.diffuse;
+	result.specular = input.specular;
+	
+	// Transform all light related vectors to tangent space for we can apply normal map in the pixel shader
+	float3 binormal = normalize(cross(tangent, result.normal));
+	float3x3 tbnMatrix = float3x3(tangent.x, binormal.x, result.normal.x,
+	                              tangent.y, binormal.y, result.normal.y,
+	                              tangent.z, binormal.z, result.normal.z);
+	float3x3 invTbnMatrix = transpose(tbnMatrix);
+	result.normal = mul(invTbnMatrix, result.normal);
+	result.light = mul(invTbnMatrix, result.light);
+	result.view = mul(invTbnMatrix, result.view);
+
+    return result;
+}

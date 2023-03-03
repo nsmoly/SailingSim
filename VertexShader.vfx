@@ -1,0 +1,89 @@
+
+static const int MAX_BONE_MATRICES = 16;
+
+float4x4 matViewProj		: register(c0);
+float4 matWorld0	        : register(c4);
+float4 matWorld1	        : register(c5);
+float4 matWorld2	        : register(c6);
+float4 matWorld3	        : register(c7);
+
+float4 eyePt	            : register(c12);
+float4 vecLightDir          : register(c13);
+
+float4x4 matPalette[MAX_BONE_MATRICES] : register(c14);
+bool useSkinning			: register(b0);
+
+struct VS_INPUT
+{
+    float3 position	   : POSITION;
+    float3 normal	   : NORMAL;
+    float4 diffuse	   : COLOR0;
+    float4 specular	   : COLOR1;
+    float2 texCoords   : TEXCOORD0;
+    float4 boneIndices : BLENDINDICES;
+    float4 boneWeights : BLENDWEIGHT;
+};
+
+struct VS_OUTPUT
+{
+    float4 position  : POSITION;
+    float2 texCoords : TEXCOORD0;
+    float3 light	 : TEXCOORD1;
+    float3 normal	 : TEXCOORD2;
+	float3 view		 : TEXCOORD3;
+    float4 diffuse   : COLOR0;
+    float4 specular  : COLOR1;
+};
+
+VS_OUTPUT main(VS_INPUT input)
+{
+    VS_OUTPUT result;
+
+	float4 inputPosition = float4(input.position, 1);
+	float4 inputNormal = float4(input.normal, 0);
+    float4 outputPosition = 0;
+    float4 outputNormal = 0;
+    
+    if(useSkinning)
+	{
+		float boneWeightsArray[4] = (float[4])input.boneWeights;
+		int boneIndicesArray[4] = (int[4])input.boneIndices;
+
+		for(int i=0; i<4; i++)
+		{
+			if(boneIndicesArray[i]!=-1)
+			{
+				outputPosition += mul(inputPosition, matPalette[boneIndicesArray[i]]) * boneWeightsArray[i];
+				outputNormal   += mul(inputNormal, matPalette[boneIndicesArray[i]]) * boneWeightsArray[i];
+			}
+		}
+
+		outputNormal = normalize(outputNormal);
+	}
+	else
+	{
+		outputPosition = inputPosition;
+		outputNormal = inputNormal;
+	}
+    
+	float3 posWorld;
+	posWorld.x = dot(outputPosition, matWorld0);
+    posWorld.y = dot(outputPosition, matWorld1);
+    posWorld.z = dot(outputPosition, matWorld2);
+	result.view = normalize(float3(eyePt.x,eyePt.y,eyePt.z) - posWorld);
+	
+	result.normal.x = dot(outputNormal, matWorld0);
+    result.normal.y = dot(outputNormal, matWorld1);
+    result.normal.z = dot(outputNormal, matWorld2);
+    result.normal = normalize(result.normal);
+	
+	result.light = normalize(float3(-vecLightDir.x, -vecLightDir.y, -vecLightDir.z));
+	
+	result.position = mul(float4(posWorld,1), matViewProj);
+	
+	result.texCoords = input.texCoords;
+	result.diffuse = input.diffuse;
+	result.specular = input.specular;
+
+    return result;
+}
