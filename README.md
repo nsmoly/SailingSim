@@ -5,6 +5,7 @@ This is an old sailing simulator game I created back in 2009-2010 as part of lea
 ![alt text](SailingSim_pic.jpg)
 
 This video shows some footage from this demo (fps was low due to bad screen grab):
+
 [SailingSim demo](https://youtu.be/endW2KwM4lI)
 
 The sailboat model is motivated by the real physics of sailing, but it is not 100% correct. The dynamical system only roughly approximates a real sailboat and is OK for games. But even with my simplifications, the model can tack realistically, can get stuck “in irons”, the wind can blow the boat backwards, etc. The game has a simple collision system, AI that drives NPC boats (with red sails), line of sight, wave/ocean simulation, skeletal animation, light, crafted 3D models, etc. 
